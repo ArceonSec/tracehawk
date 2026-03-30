@@ -6,3 +6,10 @@ services:
     volumes:
       - ./output:/output
       - ./.trivy-cache:/root/.cache/trivy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - tracehawk

@@ -111,7 +111,7 @@ trivy is pinned to `v0.69.3`. `v0.69.4` was compromised in a supply chain attack
 ## roadmap
 
 - [x] **P1**: FastAPI backend — REST API to trigger scans and serve results, all inside Docker
-- [ ] **P2**: Svelte frontend — real-time pipeline visualization, findings dashboard, side-by-side vulnerable vs fixed code diff
+- [x] **P2**: Svelte frontend — real-time pipeline visualization, findings dashboard, side-by-side vulnerable vs fixed code diff
 - [ ] **P3**: GitHub OAuth integration — scan private repos securely
 - [ ] **P4**: Gemini 2.0 Flash integration — plain language explanations of findings, intelligent fix code generation, context-aware dependency suggestions, and complete report generation
 - [ ] **P5**: Ops Healthboard integration — feed pipeline run data out to external dashboards
