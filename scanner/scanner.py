@@ -3,6 +3,8 @@ import json
 import os
 import sys
 import argparse
+import tempfile
+import contextlib
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -39,19 +41,20 @@ def scan_semgrep(target):
 # ---------------- GITLEAKS ----------------
 
 def run_gitleaks(target):
-    cmd = [
-        "gitleaks", "detect",
-        "--source", target,
-        "--report-format", "json",
-        "--report-path", "/tmp/gitleaks-report.json",
-        "--no-git"
-    ]
-    subprocess.run(cmd, capture_output=True, text=True)
-    try:
-        with open("/tmp/gitleaks-report.json", "r") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "[]"
+    with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+        cmd = [
+            "gitleaks", "detect",
+            "--source", target,
+            "--report-format", "json",
+            "--report-path", tmp.name,
+            "--no-git"
+        ]
+        subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            with open(tmp.name, "r") as f:
+                return f.read()
+        except FileNotFoundError:
+            return "[]"
 
 def scan_gitleaks(target):
     raw = run_gitleaks(target)
@@ -106,13 +109,19 @@ def scan_trivy(target):
 
 # ---------------- CLONE ----------------
 
+@contextlib.contextmanager
 def resolve_target(target):
     if target.startswith("http://") or target.startswith("https://") or target.startswith("git@"):
-        clone_dir = "/tmp/cloned-repo"
+        temp_dir = tempfile.TemporaryDirectory()
+        clone_dir = temp_dir.name
         print(f"Cloning {target}...")
-        subprocess.run(["git", "clone", "--depth=1", target, clone_dir], check=True)
-        return clone_dir
-    return os.path.abspath(target)
+        subprocess.run(["git", "clone", "--depth=1", "--", target, clone_dir], check=True)
+        try:
+            yield clone_dir
+        finally:
+            temp_dir.cleanup()
+    else:
+        yield os.path.abspath(target)
 
 
 # ---------------- FAIL CHECK ----------------
@@ -129,16 +138,14 @@ def should_fail(findings):
 # ---------------- API ----------------
 
 def run_scan(target, tools_list):
-    resolved_target = resolve_target(target)
     findings = []
-    
-    if "semgrep" in tools_list:
-        findings.extend(scan_semgrep(resolved_target))
-    if "gitleaks" in tools_list:
-        findings.extend(scan_gitleaks(resolved_target))
-    if "trivy" in tools_list:
-        findings.extend(scan_trivy(resolved_target))
-        
+    with resolve_target(target) as resolved_target:
+        if "semgrep" in tools_list:
+            findings.extend(scan_semgrep(resolved_target))
+        if "gitleaks" in tools_list:
+            findings.extend(scan_gitleaks(resolved_target))
+        if "trivy" in tools_list:
+            findings.extend(scan_trivy(resolved_target))
     return findings
 
 
@@ -168,21 +175,21 @@ def main():
 
     args = parser.parse_args()
     tools = [t.strip() for t in args.tools.split(",")]
-    target = resolve_target(args.target)
-
-    print(f"Scanning: {target}")
-    print(f"Tools: {', '.join(tools)}\n")
 
     findings = []
-    if "semgrep" in tools:
-        print("Running semgrep...")
-        findings.extend(scan_semgrep(target))
-    if "gitleaks" in tools:
-        print("Running gitleaks...")
-        findings.extend(scan_gitleaks(target))
-    if "trivy" in tools:
-        print("Running trivy...")
-        findings.extend(scan_trivy(target))
+    with resolve_target(args.target) as target:
+        print(f"Scanning: {target}")
+        print(f"Tools: {', '.join(tools)}\n")
+
+        if "semgrep" in tools:
+            print("Running semgrep...")
+            findings.extend(scan_semgrep(target))
+        if "gitleaks" in tools:
+            print("Running gitleaks...")
+            findings.extend(scan_gitleaks(target))
+        if "trivy" in tools:
+            print("Running trivy...")
+            findings.extend(scan_trivy(target))
 
     print(f"\nTotal findings: {len(findings)}\n")
 

@@ -32,7 +32,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",  # Svelte/Vite
+        "http://localhost:3000",  # React default
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -104,6 +107,8 @@ def _save_scan(scan: dict) -> None:
 
 
 def _load_scan(scan_id: str) -> Optional[dict]:
+    if not scan_id.isalnum():
+        raise HTTPException(status_code=400, detail="Invalid scan_id format")
     scan_file = SCANS_DIR / f"{scan_id}.json"
     if not scan_file.exists():
         return None
@@ -238,6 +243,8 @@ def get_scan(scan_id: str):
 @app.delete("/scans/{scan_id}")
 def delete_scan(scan_id: str):
     """Delete a specific scan result."""
+    if not scan_id.isalnum():
+        raise HTTPException(status_code=400, detail="Invalid scan_id format")
     scan_file = SCANS_DIR / f"{scan_id}.json"
     if not scan_file.exists():
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
