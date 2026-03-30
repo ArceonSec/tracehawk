@@ -8,6 +8,7 @@ import json
 import uuid
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -56,6 +57,14 @@ class ScanRequest(BaseModel):
     output: str = Field(
         default="json",
         description="Output format: json | terminal | both",
+    )
+    code_snippet: Optional[str] = Field(
+        default=None,
+        description="Optional: Raw code string for snippet scanning mode",
+    )
+    filename: Optional[str] = Field(
+        default=None,
+        description="Optional: Custom filename for the code snippet (e.g., script.py)",
     )
 
 
@@ -189,7 +198,17 @@ def trigger_scan(req: ScanRequest):
 
     # Run scanner
     try:
-        findings = _run_scanner(req.target, req.tools)
+        if req.code_snippet:
+            # Create a secure temporary directory for the snippet
+            with tempfile.TemporaryDirectory() as td:
+                safe_filename = Path(req.filename or "snippet.py").name
+                file_path = Path(td) / safe_filename
+                file_path.write_text(req.code_snippet, encoding="utf-8")
+                
+                # Execute scanner against the temporary directory
+                findings = _run_scanner(str(td), req.tools)
+        else:
+            findings = _run_scanner(req.target, req.tools)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scanner error: {str(e)}")
 

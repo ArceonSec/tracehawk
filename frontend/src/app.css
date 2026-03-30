@@ -1,0 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --bg-base: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-elevated: #334155;
+  
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-glow: rgba(0, 0, 0, 0.1);
+
+  --accent-cyan: #38bdf8;
+  --accent-purple: #818cf8;
+  --accent-pink: #f472b6;
+  
+  --text-main: #e2e8f0;
+  --text-muted: #94a3b8;
+  
+  --critical: #ef4444;
+  --high: #f97316;
+  --medium: #eab308;
+  --low: #3b82f6;
+
+  --font-mono: 'Space Grotesk', ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.03), transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(56, 189, 248, 0.03), transparent 25%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.glass-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+.glass-card:hover {
+  border-color: rgba(129, 140, 248, 0.3);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: #fff;
+}
+
+.gradient-text {
+  background: linear-gradient(to right, var(--accent-cyan), var(--accent-purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  background: var(--bg-surface-elevated);
+  color: var(--text-main);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-primary {
+  background: var(--accent-purple);
+  color: white;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.btn-primary:hover {
+  background: #6366f1; /* Darker indigo */
+  transform: translateY(-1px);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--bg-surface-elevated);
+  color: var(--text-main);
+}
+.btn-outline:hover {
+  background: var(--bg-surface-elevated);
+}
+
+/* Inputs */
+.input-field {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field:focus {
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+}
+
+/* Severities */
+.badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.badge-critical { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid var(--critical); }
+.badge-high { background: rgba(249, 115, 22, 0.2); color: #fdba74; border: 1px solid var(--high); }
+.badge-medium { background: rgba(234, 179, 8, 0.2); color: #fef08a; border: 1px solid var(--medium); }
+.badge-low { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid var(--low); }
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-surface-elevated);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-purple);
+}
