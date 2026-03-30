@@ -18,32 +18,27 @@ tracehawk runs three security tools against your code in a single Docker contain
 
 ## quickstart
 
-**build:**
+**1. start the platform:**
 ```bash
-docker build -t tracehawk .
+docker compose up --build -d
+```
+This spins up the FastAPI backend and maps port 8000 for the REST API.
+
+**2. scan a target via API:**
+```bash
+curl -X POST http://localhost:8000/scan \
+  -H "Content-Type: application/json" \
+  -d '{"target": "./test-repos", "tools": "semgrep,gitleaks,trivy", "output": "json"}'
 ```
 
-**scan a local directory:**
-```bash
-docker run --rm \
-  -v ${PWD}/output:/output \
-  -v ${PWD}/.trivy-cache:/root/.cache/trivy \
-  tracehawk python main.py --target /path/to/code
-```
-
-**scan a remote git repo:**
-```bash
-docker run --rm \
-  -v ${PWD}/output:/output \
-  -v ${PWD}/.trivy-cache:/root/.cache/trivy \
-  tracehawk python main.py --target https://github.com/user/repo
-```
-
-results are written to `output/results.json`.
+**3. view results:**
+Check `output/scans/` on your host machine or visit the Swagger UI at `http://localhost:8000/docs`.
 
 ---
 
-## cli flags
+## cli usage
+
+You can still use the script internally if you prefer the CLI mode over the REST API:
 
 | flag | description | default |
 |------|-------------|---------|
@@ -54,13 +49,10 @@ results are written to `output/results.json`.
 **examples:**
 ```bash
 # run only semgrep and gitleaks
-python main.py --tools semgrep,gitleaks
-
-# terminal output only, no file
-python main.py --output terminal
+docker compose exec tracehawk python scanner/scanner.py --tools semgrep,gitleaks
 
 # single tool against a specific path
-python main.py --target ./src --tools trivy
+docker compose exec tracehawk python scanner/scanner.py --target ./src --tools trivy
 ```
 
 ---
@@ -118,10 +110,11 @@ trivy is pinned to `v0.69.3`. `v0.69.4` was compromised in a supply chain attack
 
 ## roadmap
 
-- [ ] FastAPI backend — REST API to trigger scans and serve results
-- [ ] React frontend — web UI with tool toggles, severity filters, findings dashboard
-- [ ] Gemini 2.0 Flash integration — AI-powered fix suggestions per finding
-- [ ] auto-remediation agent — auto bump vulnerable deps, redact leaked secrets, suggest code patches
+- [x] **P1**: FastAPI backend — REST API to trigger scans and serve results, all inside Docker
+- [ ] **P2**: Svelte frontend — real-time pipeline visualization, findings dashboard, side-by-side vulnerable vs fixed code diff
+- [ ] **P3**: GitHub OAuth integration — scan private repos securely
+- [ ] **P4**: Gemini 2.0 Flash integration — plain language explanations of findings, intelligent fix code generation, context-aware dependency suggestions, and complete report generation
+- [ ] **P5**: Ops Healthboard integration — feed pipeline run data out to external dashboards
 - [ ] GitHub Actions integration — run tracehawk as a CI check on every PR
 
 ---

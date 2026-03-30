@@ -32,8 +32,12 @@ RUN wget -O gitleaks.tar.gz \
  && chmod +x /usr/local/bin/gitleaks \
  && rm gitleaks.tar.gz
 
+# API dependencies
+COPY api/requirements.txt api/requirements.txt
+RUN pip install --no-cache-dir -r api/requirements.txt
+
 COPY . .
 
 RUN mkdir -p /output
 
-CMD ["python", "main.py"]
+CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]

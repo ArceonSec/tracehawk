@@ -126,6 +126,22 @@ def should_fail(findings):
     return False
 
 
+# ---------------- API ----------------
+
+def run_scan(target, tools_list):
+    resolved_target = resolve_target(target)
+    findings = []
+    
+    if "semgrep" in tools_list:
+        findings.extend(scan_semgrep(resolved_target))
+    if "gitleaks" in tools_list:
+        findings.extend(scan_gitleaks(resolved_target))
+    if "trivy" in tools_list:
+        findings.extend(scan_trivy(resolved_target))
+        
+    return findings
+
+
 # ---------------- MAIN ----------------
 
 def main():

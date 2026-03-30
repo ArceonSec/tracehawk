@@ -1,0 +1,8 @@
+services:
+  tracehawk:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./output:/output
+      - ./.trivy-cache:/root/.cache/trivy
