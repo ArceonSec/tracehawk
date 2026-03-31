@@ -1,5 +1,7 @@
 <script>
   export let finding;
+  export let aiFix = null;
+  export let isLoadingAI = false;
   
   let isExpanded = false;
 
@@ -52,10 +54,17 @@
           <div class="gutters">
             <span>{finding.line || '1'}</span>
           </div>
-          <div class="placeholder-ai">
-            <p>Gemini integration pending (Phase 4). Remediation logic will be injected here to auto-patch {finding.rule}.</p>
-            <button class="btn btn-outline" disabled>Auto-Fix (Coming Soon)</button>
-          </div>
+          {#if isLoadingAI}
+            <div class="placeholder-ai">
+              <p>Analyzing context and synthesizing patch...</p>
+            </div>
+          {:else if aiFix}
+            <pre><code><span class="safe-text">{aiFix}</span></code></pre>
+          {:else}
+            <div class="placeholder-ai">
+              <p>Trigger the AI Batch Strategy button above to generate a remediation for {finding.rule}.</p>
+            </div>
+          {/if}
         </div>
       </div>
     </div>
@@ -212,5 +221,10 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 15px;
+  }
+
+  .safe-text {
+    color: var(--accent-cyan);
+    white-space: pre-wrap;
   }
 </style>

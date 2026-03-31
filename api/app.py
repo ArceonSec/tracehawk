@@ -91,6 +91,7 @@ class ScanSummary(BaseModel):
 
 class ScanResult(ScanSummary):
     findings: list[dict]
+    categorized_findings: dict = {}
 
 
 # ── helpers ────────────────────────────────────────────────────────────
@@ -228,6 +229,13 @@ def trigger_scan(req: ScanRequest, api_key: str = Depends(verify_api_key)):
 
     completed_at = datetime.now(timezone.utc).isoformat()
 
+    categorized_findings = {}
+    for f in findings:
+        cat = f.get("category", "Uncategorized")
+        if cat not in categorized_findings:
+            categorized_findings[cat] = []
+        categorized_findings[cat].append(f)
+
     scan = {
         "scan_id": scan_id,
         "target": req.target,
@@ -238,6 +246,7 @@ def trigger_scan(req: ScanRequest, api_key: str = Depends(verify_api_key)):
         "started_at": started_at,
         "completed_at": completed_at,
         "findings": findings,
+        "categorized_findings": categorized_findings,
     }
 
     _save_scan(scan)
@@ -283,6 +292,58 @@ def delete_scan(scan_id: str, api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
     scan_file.unlink()
     return {"message": f"Scan {scan_id} deleted"}
+
+
+class RemediationRequest(BaseModel):
+    category: str
+    findings: list[dict]
+
+@app.post("/ai/remediate/category")
+def remediate_category(req: RemediationRequest, api_key: str = Depends(verify_api_key)):
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured on server")
+    
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=gemini_key)
+        
+        prompt = f"""You are an expert Application Security / DevSecOps Engineer.
+You are given a batch of security vulnerabilities found in a codebase, all falling under the OWASP category: {req.category}.
+
+Here are the findings:
+{json.dumps(req.findings, indent=2)}
+
+Your job is to provide:
+1. A concise plain-language explanation of why this specific category of risk is dangerous to this ecosystem.
+2. Direct code-fixes for each individual finding provided in the batch.
+
+You MUST respond strictly in valid JSON format matching this schema:
+{{
+  "category_explanation": "Markdown string explaining the systemic risk.",
+  "fixes": [
+    {{
+      "file": "path/found/in/request",
+      "line": 123,
+      "remediated_code_snippet": "The patched full safe code block."
+    }}
+  ]
+}}
+Do not include conversational filler outside of the JSON block."""
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+            )
+        )
+        return json.loads(response.text)
+    except Exception as e:
+        import logging
+        logging.error(f"Gemini API Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Gemini AI Generation failed: {str(e)}")
 
 
 @app.get("/findings")

@@ -10,12 +10,16 @@
   let snippetCode = '';
   let snippetFilename = 'script.py';
   let errorMsg = '';
+  let aiResults = {};
+  let loadingAI = {};
 
   async function startScan() {
     if (!targetUrl) return;
     isScanning = true;
     errorMsg = '';
     recentScan = null;
+    aiResults = {};
+    loadingAI = {};
 
     try {
       let bodyData = { tools: 'semgrep,gitleaks,trivy', output: 'json' };
@@ -64,6 +68,32 @@
       snippetCode = e.target.result;
     };
     reader.readAsText(file);
+  }
+
+  async function generateAIBatch(category, findings) {
+    if (loadingAI[category]) return;
+    loadingAI[category] = true;
+    loadingAI = { ...loadingAI };
+    
+    try {
+      const res = await fetch('http://localhost:8000/ai/remediate/category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': 'tracehawk-default-dev-key'
+        },
+        body: JSON.stringify({ category, findings })
+      });
+      if (!res.ok) throw new Error("Failed to generate AI fix");
+      aiResults[category] = await res.json();
+      aiResults = { ...aiResults };
+    } catch (err) {
+      console.error(err);
+      alert("Error generating fix: " + err.message);
+    } finally {
+      loadingAI[category] = false;
+      loadingAI = { ...loadingAI };
+    }
   }
 </script>
 
@@ -192,9 +222,31 @@
 
         <div class="findings-list">
           <h2 class="section-title">Detected Findings</h2>
-          {#if recentScan.findings && recentScan.findings.length > 0}
-            {#each recentScan.findings as finding}
-              <FindingCard {finding} />
+          {#if recentScan.categorized_findings && Object.keys(recentScan.categorized_findings).length > 0}
+            {#each Object.entries(recentScan.categorized_findings) as [category, findings]}
+              <div class="category-group">
+                <div class="category-header">
+                  <h3>{category} <span class="badge badge-count">{findings.length} findings</span></h3>
+                  <button class="btn btn-outline ai-batch-btn" class:scanning={loadingAI[category]} on:click={() => generateAIBatch(category, findings)} disabled={loadingAI[category]}>
+                    {#if loadingAI[category]}
+                      ✨ Processing...
+                    {:else}
+                      ✨ Generate AI Strategy & Fixes
+                    {/if}
+                  </button>
+                </div>
+                
+                {#if aiResults[category]}
+                  <div class="ai-batch-result glass-panel">
+                    <h4>AI Security Strategy</h4>
+                    <p>{aiResults[category].category_explanation}</p>
+                  </div>
+                {/if}
+
+                {#each findings as finding}
+                  <FindingCard {finding} aiFix={aiResults[category]?.fixes?.find(f => f.file === finding.file && f.line === finding.line)?.remediated_code_snippet} isLoadingAI={loadingAI[category]} />
+                {/each}
+              </div>
             {/each}
           {:else}
             <div class="all-clear glass-panel">
@@ -425,5 +477,68 @@
   }
   .all-clear h3 {
     color: var(--accent-purple);
+  }
+
+  .category-group {
+    margin-bottom: 40px;
+  }
+
+  .category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .category-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .badge-count {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    padding: 3px 8px;
+    border-radius: 12px;
+  }
+
+  .ai-batch-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    color: var(--accent-cyan);
+    border-color: rgba(0, 240, 255, 0.4);
+    background: rgba(0, 240, 255, 0.05);
+  }
+
+  .ai-batch-btn:hover:not(:disabled) {
+    background: rgba(0, 240, 255, 0.15);
+  }
+
+  .ai-batch-result {
+    margin-bottom: 20px;
+    padding: 15px 20px;
+    background: rgba(176, 82, 255, 0.08);
+    border-color: rgba(176, 82, 255, 0.3);
+  }
+
+  .ai-batch-result h4 {
+    margin: 0 0 10px 0;
+    color: var(--accent-purple);
+  }
+
+  .ai-batch-result p {
+    margin: 0;
+    line-height: 1.5;
+    color: var(--text-main);
   }
 </style>

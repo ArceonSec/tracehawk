@@ -27,13 +27,19 @@ def scan_semgrep(target):
         return []
     findings = []
     for f in data.get("results", []):
+        metadata = f.get("extra", {}).get("metadata", {})
+        owasp_cats = metadata.get("owasp", metadata.get("cwe", ["A00: Uncategorized Code Vulnerability"]))
+        category = owasp_cats[0] if isinstance(owasp_cats, list) and len(owasp_cats) > 0 else (owasp_cats or "A00: Uncategorized Code Vulnerability")
+        
         findings.append({
             "tool": "semgrep",
+            "category": category,
             "rule": f.get("check_id"),
             "file": f.get("path"),
             "line": f.get("start", {}).get("line"),
             "severity": (f.get("extra", {}).get("severity") or "").upper(),
-            "message": f.get("extra", {}).get("message")
+            "message": f.get("extra", {}).get("message"),
+            "snippet": f.get("extra", {}).get("lines", "")
         })
     return findings
 
@@ -66,11 +72,13 @@ def scan_gitleaks(target):
     for f in data:
         findings.append({
             "tool": "gitleaks",
+            "category": "A07:2021 - Identification and Authentication Failures",
             "rule": f.get("RuleID"),
             "file": f.get("File"),
             "line": f.get("StartLine"),
             "severity": "CRITICAL",
-            "message": f.get("Description")
+            "message": f.get("Description"),
+            "snippet": f.get("Match", f.get("Secret", ""))
         })
     return findings
 
@@ -98,11 +106,13 @@ def scan_trivy(target):
         for vuln in result.get("Vulnerabilities") or []:
             findings.append({
                 "tool": "trivy",
+                "category": "A06:2021 - Vulnerable and Outdated Components",
                 "rule": vuln.get("VulnerabilityID"),
                 "file": result.get("Target"),
                 "line": None,
                 "severity": vuln.get("Severity"),
-                "message": vuln.get("Title")
+                "message": vuln.get("Title"),
+                "snippet": f"{vuln.get('PkgName', '')}@{vuln.get('InstalledVersion', '')}"
             })
     return findings
 
