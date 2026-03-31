@@ -121,7 +121,12 @@ def resolve_target(target):
         finally:
             temp_dir.cleanup()
     else:
-        yield os.path.abspath(target)
+        abs_target = os.path.abspath(target)
+        app_root = os.path.dirname(BASE_DIR)
+        # Prevent path traversal outside of application root
+        if not abs_target.startswith(app_root):
+            raise ValueError("Path traversal detected: Target directory must be within application root.")
+        yield abs_target
 
 
 # ---------------- FAIL CHECK ----------------

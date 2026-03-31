@@ -9,7 +9,14 @@ RUN npm run build
 # Serve stage
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# Configure Nginx for Single Page Application routing
-RUN echo "server { listen 80; location / { root /usr/share/nginx/html; index index.html; try_files \$uri \$uri/ /index.html; } }" > /etc/nginx/conf.d/default.conf
-EXPOSE 80
+# Configure Nginx for SPA routing and unprivileged port 8080
+RUN echo "server { listen 8080; location / { root /usr/share/nginx/html; index index.html; try_files \$uri \$uri/ /index.html; } }" > /etc/nginx/conf.d/default.conf
+
+# Secure nginx to run as non-root user
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx /etc/nginx/conf.d \
+ && touch /var/run/nginx.pid \
+ && chown -R nginx:nginx /var/run/nginx.pid
+
+USER nginx
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

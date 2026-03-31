@@ -5,11 +5,11 @@ services:
       - "8000:8000"
     volumes:
       - ./output:/output
-      - ./.trivy-cache:/root/.cache/trivy
+      - ./.trivy-cache:/home/tracehawk/.cache/trivy
 
   frontend:
     build: ./frontend
     ports:
-      - "5173:80"
+      - "5173:8080"
     depends_on:
       - tracehawk

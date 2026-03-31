@@ -13,9 +13,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
+
+# ── auth ───────────────────────────────────────────────────────────────
+API_TOKEN = os.getenv("TRACEHAWK_API_KEY", "tracehawk-default-dev-key")
+api_key_scheme = APIKeyHeader(name="X-API-Key", auto_error=True)
+
+def verify_api_key(api_key: str = Security(api_key_scheme)):
+    if api_key != API_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+    return api_key
 
 # ── paths ──────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -190,7 +200,7 @@ def health_check():
 
 
 @app.post("/scan", response_model=ScanResult)
-def trigger_scan(req: ScanRequest):
+def trigger_scan(req: ScanRequest, api_key: str = Depends(verify_api_key)):
     """Trigger a new security scan."""
     scan_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
@@ -209,8 +219,12 @@ def trigger_scan(req: ScanRequest):
                 findings = _run_scanner(str(td), req.tools)
         else:
             findings = _run_scanner(req.target, req.tools)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Scanner error: {str(e)}")
+        import logging
+        logging.error(f"Internal scanner workflow error: {e}")
+        raise HTTPException(status_code=500, detail="Scanner encountered an internal execution error.")
 
     completed_at = datetime.now(timezone.utc).isoformat()
 
@@ -232,13 +246,13 @@ def trigger_scan(req: ScanRequest):
 
 
 @app.get("/scans")
-def list_scans():
+def list_scans(api_key: str = Depends(verify_api_key)):
     """List all scan results (summaries only)."""
     return _list_scans()
 
 
 @app.get("/scans/latest", response_model=ScanResult)
-def get_latest_scan():
+def get_latest_scan(api_key: str = Depends(verify_api_key)):
     """Get the most recent scan result."""
     scans = _list_scans()
     if not scans:
@@ -251,7 +265,7 @@ def get_latest_scan():
 
 
 @app.get("/scans/{scan_id}", response_model=ScanResult)
-def get_scan(scan_id: str):
+def get_scan(scan_id: str, api_key: str = Depends(verify_api_key)):
     """Get a specific scan result by ID."""
     scan = _load_scan(scan_id)
     if not scan:
@@ -260,7 +274,7 @@ def get_scan(scan_id: str):
 
 
 @app.delete("/scans/{scan_id}")
-def delete_scan(scan_id: str):
+def delete_scan(scan_id: str, api_key: str = Depends(verify_api_key)):
     """Delete a specific scan result."""
     if not scan_id.isalnum():
         raise HTTPException(status_code=400, detail="Invalid scan_id format")
@@ -275,6 +289,7 @@ def delete_scan(scan_id: str):
 def get_findings(
     severity: Optional[str] = Query(None, description="Filter by severity (e.g., CRITICAL, HIGH)"),
     tool: Optional[str] = Query(None, description="Filter by tool (e.g., semgrep, gitleaks, trivy)"),
+    api_key: str = Depends(verify_api_key)
 ):
     """Get all findings from the latest scan, with optional filtering."""
     scans = _list_scans()

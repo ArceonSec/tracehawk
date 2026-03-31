@@ -30,7 +30,8 @@ RUN wget -O gitleaks.tar.gz \
  && tar -xzf gitleaks.tar.gz \
  && mv gitleaks /usr/local/bin/ \
  && chmod +x /usr/local/bin/gitleaks \
- && rm gitleaks.tar.gz
+ && rm gitleaks.tar.gz \
+ && apk del curl wget tar
 
 # API dependencies
 COPY api/requirements.txt api/requirements.txt
@@ -38,6 +39,12 @@ RUN pip install --no-cache-dir -r api/requirements.txt
 
 COPY . .
 
-RUN mkdir -p /output
+RUN mkdir -p /output \
+ && adduser -D -u 1000 tracehawk \
+ && mkdir -p /home/tracehawk/.cache \
+ && chown -R tracehawk:tracehawk /app /output /home/tracehawk
+
+USER tracehawk
+ENV HOME=/home/tracehawk
 
 CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]

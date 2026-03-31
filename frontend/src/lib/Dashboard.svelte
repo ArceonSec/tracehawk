@@ -30,7 +30,10 @@
       // Simulate delay for the pipeline UI if it resolves too quickly
       const scanPromise = fetch('http://localhost:8000/scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': 'tracehawk-default-dev-key'
+        },
         body: JSON.stringify(bodyData)
       });
 
