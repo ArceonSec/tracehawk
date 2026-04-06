@@ -41,7 +41,7 @@ COPY . .
 
 RUN mkdir -p /output \
  && adduser -D -u 1000 tracehawk \
- && mkdir -p /home/tracehawk/.cache \
+ && mkdir -p /home/tracehawk/.cache/trivy \
  && chown -R tracehawk:tracehawk /app /output /home/tracehawk
 
 USER tracehawk

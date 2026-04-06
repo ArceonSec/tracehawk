@@ -13,13 +13,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
+
+# Load .env file when running locally; no-op inside Docker where Compose injects vars.
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 # ── auth ───────────────────────────────────────────────────────────────
-API_TOKEN = os.getenv("TRACEHAWK_API_KEY", "tracehawk-default-dev-key")
+API_TOKEN = os.getenv("TRACEHAWK_API_KEY")
+if not API_TOKEN:
+    raise RuntimeError(
+        "TRACEHAWK_API_KEY environment variable is not set. "
+        "Create a .env file and set a strong random key before starting."
+    )
+
 api_key_scheme = APIKeyHeader(name="X-API-Key", auto_error=True)
 
 def verify_api_key(api_key: str = Security(api_key_scheme)):
@@ -29,7 +40,7 @@ def verify_api_key(api_key: str = Security(api_key_scheme)):
 
 # ── paths ──────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
-SCANNER_PATH = ROOT_DIR / "scanner" / "scanner.py"
+SCANNER_PATH = ROOT_DIR / "api" / "scanner.py"
 OUTPUT_DIR = ROOT_DIR / "output"
 SCANS_DIR = OUTPUT_DIR / "scans"
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
@@ -44,8 +55,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # Svelte/Vite
+        "http://localhost:5173",  # Svelte/Vite dev
         "http://localhost:3000",  # React default
+        "http://localhost:8080",  # Nginx container
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -104,11 +116,7 @@ def _severity_counts(findings: list[dict]) -> dict[str, int]:
     return counts
 
 
-# Add to sys.path so we can import the scanner module
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-from scanner.scanner import run_scan
+from api.scanner import run_scan
 
 def _run_scanner(target: str, tools: str) -> list[dict]:
     """
@@ -174,8 +182,10 @@ def root():
 
 
 @app.get("/health")
-def health_check():
-    """Health check — verify tools are available."""
+def health_check(
+    api_key: str = Depends(verify_api_key),
+):
+    """Health check — verify tools are available. Requires auth to see version details."""
     tools_status = {}
 
     for tool, cmd in [
@@ -294,56 +304,114 @@ def delete_scan(scan_id: str, api_key: str = Depends(verify_api_key)):
     return {"message": f"Scan {scan_id} deleted"}
 
 
+# Max findings per AI remediation call — prevents oversized prompt injection payloads.
+_MAX_REMEDIATION_FINDINGS = 50
+
+
 class RemediationRequest(BaseModel):
     category: str
     findings: list[dict]
+
 
 @app.post("/ai/remediate/category")
 def remediate_category(req: RemediationRequest, api_key: str = Depends(verify_api_key)):
     gemini_key = os.getenv("GEMINI_API_KEY")
     if not gemini_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured on server")
-    
+
+    if len(req.findings) > _MAX_REMEDIATION_FINDINGS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many findings: maximum {_MAX_REMEDIATION_FINDINGS} per request.",
+        )
+
     try:
         from google import genai
         from google.genai import types
+
         client = genai.Client(api_key=gemini_key)
-        
-        prompt = f"""You are an expert Application Security / DevSecOps Engineer.
-You are given a batch of security vulnerabilities found in a codebase, all falling under the OWASP category: {req.category}.
 
-Here are the findings:
-{json.dumps(req.findings, indent=2)}
-
-Your job is to provide:
-1. A concise plain-language explanation of why this specific category of risk is dangerous to this ecosystem.
-2. Direct code-fixes for each individual finding provided in the batch.
-
-You MUST respond strictly in valid JSON format matching this schema:
-{{
-  "category_explanation": "Markdown string explaining the systemic risk.",
-  "fixes": [
-    {{
-      "file": "path/found/in/request",
-      "line": 123,
-      "remediated_code_snippet": "The patched full safe code block."
-    }}
-  ]
-}}
-Do not include conversational filler outside of the JSON block."""
-        
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
+        # Build structured finding summaries for the prompt
+        finding_summaries = []
+        for i, f in enumerate(req.findings, 1):
+            summary = (
+                f"Finding #{i}:\n"
+                f"  Tool: {f.get('tool', 'unknown')}\n"
+                f"  Rule: {f.get('rule', 'N/A')}\n"
+                f"  File: {f.get('file', 'N/A')}\n"
+                f"  Line: {f.get('line', 'N/A')}\n"
+                f"  Severity: {f.get('severity', 'N/A')}\n"
+                f"  CWE: {', '.join(f.get('cwe', [])) or 'N/A'}\n"
+                f"  Message: {f.get('message', 'N/A')}\n"
+                f"  Code Snippet: {f.get('snippet', 'N/A')}"
             )
+            finding_summaries.append(summary)
+
+        findings_text = "\n\n".join(finding_summaries)
+
+        # System instruction — kept separate from user-controlled data to prevent prompt injection.
+        system_instruction = (
+            "You are an expert Application Security / DevSecOps Engineer performing a security audit.\n\n"
+            f"The following findings all fall under OWASP category: **{req.category}**\n\n"
+            "Your job is to provide:\n"
+            "1. `category_explanation` — A concise markdown explanation of why this OWASP category "
+            "   is dangerous, what attack vectors it enables, and its real-world impact. "
+            "   Use bullet points and bold text for readability.\n"
+            "2. `fixes` — A list of concrete code fixes for each finding. Each fix must include "
+            "   the original vulnerable code and the remediated replacement.\n\n"
+            "Respond STRICTLY in valid JSON matching this schema:\n"
+            "{\n"
+            '  "category_explanation": "Markdown string explaining the systemic risk.",\n'
+            '  "fixes": [\n'
+            '    {\n'
+            '      "file": "exact file path from the finding",\n'
+            '      "line": 123,\n'
+            '      "vulnerable_code": "The original dangerous code snippet",\n'
+            '      "remediated_code_snippet": "The patched, safe replacement code",\n'
+            '      "explanation": "Brief explanation of what was wrong and how the fix addresses it"\n'
+            '    }\n'
+            '  ]\n'
+            "}\n"
+            "Do not include any text outside the JSON block.\n"
+            "If a finding has no actionable code fix (e.g., a dependency CVE), set "
+            "remediated_code_snippet to a recommended version pin or mitigation command."
         )
-        return json.loads(response.text)
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=findings_text,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+            ),
+        )
+
+        # Validate the response structure
+        parsed = json.loads(response.text)
+        if not isinstance(parsed.get("category_explanation"), str):
+            parsed["category_explanation"] = "AI analysis could not generate an explanation for this category."
+        if not isinstance(parsed.get("fixes"), list):
+            parsed["fixes"] = []
+
+        return parsed
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail="Gemini returned invalid JSON. Please retry.")
     except Exception as e:
         import logging
+        # Log the full error server-side, but sanitize client response
         logging.error(f"Gemini API Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Gemini AI Generation failed: {str(e)}")
+        error_msg = str(e)
+        # Never leak API keys or internal file paths in responses
+        if gemini_key and gemini_key in error_msg:
+            error_msg = "Authentication error with AI provider."
+        elif "quota" in error_msg.lower() or "rate" in error_msg.lower():
+            error_msg = "AI provider rate limit exceeded. Please try again later."
+        elif "not found" in error_msg.lower():
+            error_msg = "AI model not available. Check server configuration."
+        else:
+            error_msg = "AI remediation generation failed. Check server logs."
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.get("/findings")

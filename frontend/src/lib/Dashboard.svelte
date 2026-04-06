@@ -1,6 +1,7 @@
 <script>
   import PipelineAnimation from './PipelineAnimation.svelte';
   import FindingCard from './FindingCard.svelte';
+  import { API_URL, API_KEY } from './config.js';
 
   export let isScanning = false;
   export let recentScan = null;
@@ -31,12 +32,11 @@
         bodyData.filename = snippetFilename;
       }
 
-      // Simulate delay for the pipeline UI if it resolves too quickly
-      const scanPromise = fetch('http://localhost:8000/scan', {
+      const scanPromise = fetch(`${API_URL}/scan`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-API-Key': 'tracehawk-default-dev-key'
+          'X-API-Key': API_KEY
         },
         body: JSON.stringify(bodyData)
       });
@@ -48,7 +48,8 @@
       ]);
 
       if (!response.ok) {
-        throw new Error('API Execution Failed');
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.detail || `API returned ${response.status}`);
       }
 
       recentScan = await response.json();
@@ -76,15 +77,18 @@
     loadingAI = { ...loadingAI };
     
     try {
-      const res = await fetch('http://localhost:8000/ai/remediate/category', {
+      const res = await fetch(`${API_URL}/ai/remediate/category`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': 'tracehawk-default-dev-key'
+          'X-API-Key': API_KEY
         },
         body: JSON.stringify({ category, findings })
       });
-      if (!res.ok) throw new Error("Failed to generate AI fix");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.detail || "Failed to generate AI fix");
+      }
       aiResults[category] = await res.json();
       aiResults = { ...aiResults };
     } catch (err) {
@@ -238,13 +242,13 @@
                 
                 {#if aiResults[category]}
                   <div class="ai-batch-result glass-panel">
-                    <h4>AI Security Strategy</h4>
-                    <p>{aiResults[category].category_explanation}</p>
+                    <h4>✦ AI Security Strategy</h4>
+                    <div class="ai-explanation">{aiResults[category].category_explanation}</div>
                   </div>
                 {/if}
 
                 {#each findings as finding}
-                  <FindingCard {finding} aiFix={aiResults[category]?.fixes?.find(f => f.file === finding.file && f.line === finding.line)?.remediated_code_snippet} isLoadingAI={loadingAI[category]} />
+                  <FindingCard {finding} aiFix={aiResults[category]?.fixes?.find(f => f.file === finding.file && f.line === finding.line)} isLoadingAI={loadingAI[category]} />
                 {/each}
               </div>
             {/each}
@@ -536,9 +540,11 @@
     color: var(--accent-purple);
   }
 
-  .ai-batch-result p {
+  .ai-explanation {
     margin: 0;
-    line-height: 1.5;
+    line-height: 1.7;
     color: var(--text-main);
+    font-size: 0.92rem;
+    white-space: pre-wrap;
   }
 </style>

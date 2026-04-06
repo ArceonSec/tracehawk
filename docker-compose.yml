@@ -3,11 +3,12 @@ services:
     build: .
     ports:
       - "8000:8000"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    env_file:
+      - .env                              # All secrets loaded from .env — never hardcode values here
     volumes:
       - ./output:/output
-      - ./.trivy-cache:/home/tracehawk/.cache/trivy
+      - trivy-cache:/home/tracehawk/.cache/trivy
+
 
   frontend:
     build: ./frontend
@@ -15,3 +16,6 @@ services:
       - "5173:8080"
     depends_on:
       - tracehawk
+
+volumes:
+  trivy-cache:

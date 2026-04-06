@@ -149,6 +149,7 @@ h1, h2, h3, h4, h5 {
 .badge-critical { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid var(--critical); }
 .badge-high { background: rgba(249, 115, 22, 0.2); color: #fdba74; border: 1px solid var(--high); }
 .badge-medium { background: rgba(234, 179, 8, 0.2); color: #fef08a; border: 1px solid var(--medium); }
+.badge-warning { background: rgba(234, 179, 8, 0.2); color: #fef08a; border: 1px solid var(--medium); }
 .badge-low { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid var(--low); }
 
 /* Scrollbar */

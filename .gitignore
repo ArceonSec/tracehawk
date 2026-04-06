@@ -1,10 +1,23 @@
-venv
-.trivy-cache
+venv/
+.trivy-cache/
 output/
+
+# Secrets — never commit these
+.env
+terraform/terraform.tfvars
 
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 */__pycache__/
+
+# Node
 node_modules/
+*/node_modules/
+
+# Stale scanner output
+semgrep_out.json
+
+# Cloned test repos (have their own .git)
+test-repos/Financial-Wellness-Tracker/
