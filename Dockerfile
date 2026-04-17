@@ -5,7 +5,6 @@ WORKDIR /app
 
 RUN apk add --no-cache \
     git \
-    curl \
     wget \
     bash \
     ca-certificates \
@@ -31,7 +30,7 @@ RUN wget -O gitleaks.tar.gz \
  && mv gitleaks /usr/local/bin/ \
  && chmod +x /usr/local/bin/gitleaks \
  && rm gitleaks.tar.gz \
- && apk del curl wget tar
+ && apk del wget
 
 # API dependencies
 COPY api/requirements.txt api/requirements.txt
@@ -46,5 +45,6 @@ RUN mkdir -p /output \
 
 USER tracehawk
 ENV HOME=/home/tracehawk
+ENV TRIVY_CACHE_DIR=/home/tracehawk/.cache/trivy
 
 CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,61 +1,98 @@
 <script>
-  import Sidebar from './lib/Sidebar.svelte';
   import Dashboard from './lib/Dashboard.svelte';
-  
-  let currentView = 'dashboard';
 </script>
 
-<div class="app-container">
-  <!-- Layout Wrapper -->
-  <Sidebar bind:currentView={currentView} />
+<div class="app-shell">
+  <!-- Top Navbar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-trace">TRACE</span><span class="brand-hawk">HAWK</span>
+      <span class="brand-divider">///</span>
+      <span class="brand-sub">DevSecOps Scanner</span>
+    </div>
+    <div class="topbar-status">
+      <span class="status-dot"></span>
+      <span class="status-text">v0.1.0</span>
+    </div>
+  </header>
 
   <main class="main-content">
-    {#if currentView === 'dashboard'}
-      <Dashboard />
-    {:else if currentView === 'scans'}
-      <div class="placeholder-page glass-panel">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-        <h2>Scan History</h2>
-        <p>Historical audit logs and metrics will populate here.</p>
-        <button class="btn btn-outline" on:click={() => currentView = 'dashboard'}>Run New Scan</button>
-      </div>
-    {:else if currentView === 'settings'}
-      <div class="placeholder-page glass-panel">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-        <h2>Settings</h2>
-        <p>Engine configuration, API keys, and notification routing.</p>
-      </div>
-    {/if}
+    <Dashboard />
   </main>
 </div>
 
 <style>
-  .app-container {
-    display: flex;
+  .app-shell {
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+
+  .brand-trace { color: #cbd5e1; }
+  .brand-hawk {
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .brand-divider {
+    color: rgba(255,255,255,0.15);
+    margin: 0 6px;
+    font-weight: 400;
+  }
+  .brand-sub {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  .topbar-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
   }
 
   .main-content {
     flex: 1;
-    margin-left: 250px; /* Sidebar width */
-    padding: 40px;
-    height: 100vh;
+    padding: 32px 40px;
+    max-width: 1300px;
+    width: 100%;
+    margin: 0 auto;
     overflow-y: auto;
-  }
-
-  .placeholder-page {
-    height: 80vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 20px;
-    color: var(--text-muted);
-  }
-
-  .placeholder-page svg {
-    color: var(--accent-purple);
-    opacity: 0.5;
   }
 </style>

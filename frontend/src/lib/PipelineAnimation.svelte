@@ -89,14 +89,15 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    border-color: rgba(255,255,255,0.04);
   }
 
   .card-header {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     padding: 12px 20px;
     display: flex;
     align-items: center;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
   }
 
   .dots {
@@ -104,10 +105,10 @@
     gap: 8px;
     margin-right: 20px;
   }
-  .dot { width: 12px; height: 12px; border-radius: 50%; }
-  .dot.red { background: #ef4444; }
-  .dot.yellow { background: #facc15; }
-  .dot.green { background: #22c55e; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.red { background: #9b3030; }
+  .dot.yellow { background: #8b7a2e; }
+  .dot.green { background: #2d7a3e; }
 
   .title {
     font-family: var(--font-mono);
@@ -139,11 +140,11 @@
 
   .terminal {
     flex: 1;
-    background: #0f172a; /* Slate 900 */
+    background: #060709;
     padding: 20px;
     font-family: var(--font-mono);
-    font-size: 0.9rem;
-    color: #4ade80; /* Softer terminal green */
+    font-size: 0.85rem;
+    color: #7b8da6; /* Muted slate-blue instead of bright green */
     overflow-y: auto;
     scroll-behavior: smooth;
   }
@@ -161,7 +162,7 @@
   }
 
   .prompt {
-    color: var(--accent-pink);
+    color: var(--accent-purple);
     font-weight: 700;
   }
 
