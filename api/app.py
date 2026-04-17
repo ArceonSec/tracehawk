@@ -354,27 +354,41 @@ def remediate_category(req: RemediationRequest, api_key: str = Depends(verify_ap
             "You are an expert Application Security / DevSecOps Engineer performing a security audit.\n\n"
             f"The following findings all fall under OWASP category: **{req.category}**\n\n"
             "Your job is to provide:\n"
-            "1. `category_explanation` — A concise markdown explanation of why this OWASP category "
-            "   is dangerous, what attack vectors it enables, and its real-world impact. "
-            "   Use bullet points and bold text for readability.\n"
-            "2. `fixes` — A list of concrete code fixes for each finding. Each fix must include "
-            "   the original vulnerable code and the remediated replacement.\n\n"
+            "1. `category_explanation` — A concise explanation (2-4 sentences, NO markdown formatting) of why "
+            "   this OWASP category is dangerous and what real-world attacks it enables.\n"
+            "2. `fixes` — A list of ACTIONABLE remediation steps for each finding. The fix content depends on "
+            "   which scanner tool detected it:\n\n"
+            "   **For `trivy` findings (vulnerable dependencies):**\n"
+            "   - `vulnerable_code` = the current package version string (e.g. `requests==2.25.1`)\n"
+            "   - `remediated_code_snippet` = the safe version pin (e.g. `requests>=2.32.0`)\n"
+            "   - `explanation` = What the CVE does, what version fixes it, and whether it's a breaking change.\n"
+            "     If the package has known breaking changes, mention them.\n\n"
+            "   **For `semgrep` findings (code vulnerabilities):**\n"
+            "   - `vulnerable_code` = the exact vulnerable code snippet\n"
+            "   - `remediated_code_snippet` = the corrected, safe replacement code that fixes the vulnerability\n"
+            "   - `explanation` = What the vulnerability is and how the fix neutralizes it.\n\n"
+            "   **For `gitleaks` findings (leaked secrets):**\n"
+            "   - `vulnerable_code` = the leaked secret pattern (redacted)\n"
+            "   - `remediated_code_snippet` = show how to load from environment variables instead "
+            "     (e.g. `os.environ.get('API_KEY')` or `process.env.API_KEY`)\n"
+            "   - `explanation` = Steps to revoke/rotate the leaked credential. Be specific: "
+            "     e.g. 'Go to AWS IAM console > rotate this access key' or "
+            "     'Revoke this GitHub token at github.com/settings/tokens'.\n\n"
             "Respond STRICTLY in valid JSON matching this schema:\n"
             "{\n"
-            '  "category_explanation": "Markdown string explaining the systemic risk.",\n'
+            '  "category_explanation": "Plain text explanation of the systemic risk. No markdown.",\n'
             '  "fixes": [\n'
             '    {\n'
             '      "file": "exact file path from the finding",\n'
             '      "line": 123,\n'
-            '      "vulnerable_code": "The original dangerous code snippet",\n'
-            '      "remediated_code_snippet": "The patched, safe replacement code",\n'
-            '      "explanation": "Brief explanation of what was wrong and how the fix addresses it"\n'
+            '      "vulnerable_code": "the dangerous code or version string",\n'
+            '      "remediated_code_snippet": "the safe replacement code, version pin, or env var usage",\n'
+            '      "explanation": "Plain text. What was wrong and exactly how to fix it. No markdown."\n'
             '    }\n'
             '  ]\n'
             "}\n"
-            "Do not include any text outside the JSON block.\n"
-            "If a finding has no actionable code fix (e.g., a dependency CVE), set "
-            "remediated_code_snippet to a recommended version pin or mitigation command."
+            "IMPORTANT: Do NOT use any markdown formatting (no **, no ##, no *, no backticks) in any field values. "
+            "Use plain text only. Do not include any text outside the JSON block."
         )
 
         response = client.models.generate_content(

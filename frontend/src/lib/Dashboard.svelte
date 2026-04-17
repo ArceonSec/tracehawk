@@ -2,6 +2,7 @@
   import PipelineAnimation from './PipelineAnimation.svelte';
   import FindingCard from './FindingCard.svelte';
   import { API_URL, API_KEY } from './config.js';
+  import { marked } from 'marked';
 
   export let isScanning = false;
   export let recentScan = null;
@@ -339,7 +340,7 @@
                 {#if aiResults[category]}
                   <div class="ai-batch-result glass-panel">
                     <h4>✦ AI Security Strategy</h4>
-                    <div class="ai-explanation">{aiResults[category].category_explanation}</div>
+                    <div class="ai-explanation">{@html marked(aiResults[category].category_explanation || '')}</div>
                   </div>
                 {/if}
 
@@ -656,7 +657,33 @@
     margin: 0;
     line-height: 1.7;
     color: var(--text-main);
-    font-size: 0.92rem;
-    white-space: pre-wrap;
+    font-size: 0.9rem;
+  }
+  .ai-explanation :global(p) {
+    margin: 0 0 8px 0;
+  }
+  .ai-explanation :global(ul),
+  .ai-explanation :global(ol) {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+  .ai-explanation :global(li) {
+    margin-bottom: 4px;
+  }
+  .ai-explanation :global(strong) {
+    color: #dde1e8;
+  }
+  .ai-explanation :global(code) {
+    background: rgba(255,255,255,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+  }
+  .ai-explanation :global(h2),
+  .ai-explanation :global(h3) {
+    font-size: 1rem;
+    margin: 12px 0 6px 0;
+    color: var(--accent-purple);
   }
 </style>

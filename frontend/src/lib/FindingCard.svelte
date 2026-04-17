@@ -2,6 +2,7 @@
   export let finding;
   export let aiFix = null;
   export let isLoadingAI = false;
+  import { marked } from 'marked';
   
   let isExpanded = false;
 
@@ -127,7 +128,7 @@
           {:else if aiFix}
             {#if aiFix.explanation}
               <div class="fix-explanation">
-                <strong>Why this is dangerous:</strong> {aiFix.explanation}
+                <strong>Why this is dangerous:</strong> {@html marked(aiFix.explanation || '')}
               </div>
             {/if}
             {#if aiFix.vulnerable_code}
