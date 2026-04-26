@@ -7,4 +7,4 @@ venv
 .env
 node_modules
 .trivy-cache
-output/
+test-repos

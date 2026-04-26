@@ -154,7 +154,7 @@
           }
 
           // AI fix if available
-          const fix = aiResults[category]?.fixes?.find(fx => fx.file === f.file && fx.line === f.line);
+          const fix = aiResults[category]?.fixes?.[findings.indexOf(f)];
           if (fix) {
             if (fix.explanation) {
               lines.push(`**Why this is dangerous:** ${fix.explanation}`);
@@ -345,7 +345,7 @@
                 {/if}
 
                 {#each findings as finding}
-                  <FindingCard {finding} aiFix={aiResults[category]?.fixes?.find(f => f.file === finding.file && f.line === finding.line)} isLoadingAI={loadingAI[category]} />
+                  <FindingCard {finding} aiFix={aiResults[category]?.fixes?.[findings.indexOf(finding)]} isLoadingAI={loadingAI[category]} />
                 {/each}
               </div>
             {/each}
