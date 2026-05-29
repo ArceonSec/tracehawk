@@ -232,9 +232,7 @@ def root():
 
 
 @app.get("/health")
-def health_check(
-    api_key: str = Depends(verify_api_key),
-):
+def health_check():
     """Health check — verify tools are available. Requires auth to see version details."""
     tools_status = {}
 
