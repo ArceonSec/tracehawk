@@ -1,9 +1,8 @@
 venv/
 .trivy-cache/
 output/
-
-# Secrets — never commit these
 .env
+*.pem
 terraform/terraform.tfvars
 
 # Python cache
@@ -16,7 +15,6 @@ __pycache__/
 node_modules/
 */node_modules/
 
-# Stale scanner output
 semgrep_out.json
 
 # Cloned test repos (have their own .git)
