@@ -1,0 +1,35 @@
+name: Sync To Public Repository
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  sync-to-public:
+    name: Sync Prod To ArceonSec
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Add Public Repository Remote
+        run: |
+          git remote add arceon \
+          https://x-access-token:${{ secrets.ARCEON_PAT }}@github.com/ArceonSec/tracehawk.git
+
+      - name: Push Prod Branch To Public Main
+        run: |
+          git push arceon prod:main

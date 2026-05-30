@@ -1,0 +1,128 @@
+name: Staging CI
+
+on:
+  push:
+    branches:
+      - staging
+
+  pull_request:
+    branches:
+      - staging
+
+jobs:
+  backend-lint:
+    name: Backend Lint (Ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ruff
+        run: |
+          pip install ruff
+
+      - name: Run Ruff
+        run: |
+          ruff check backend/
+
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Build Backend Image
+        run: |
+          docker build -t tracehawk-backend ./backend
+
+      - name: Build Frontend Image
+        run: |
+          docker build -t tracehawk-frontend ./frontend
+
+  gitleaks:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+
+  compose-health-check:
+    name: Docker Compose Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    needs:
+      - backend-lint
+      - docker-build
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Test Environment
+        run: |
+          echo "GEMINI_API_KEY=dummy-key" > .env
+          echo "TRACEHAWK_API_KEY=test-key" >> .env
+
+      - name: Start Services
+        run: |
+          docker compose up -d --build
+
+      - name: Wait For Backend
+        run: |
+          for i in {1..15}; do
+            if curl -sf http://localhost:8000/health; then
+              echo "Backend healthy"
+              exit 0
+            fi
+
+            echo "Waiting for backend... ($i/15)"
+            sleep 5
+          done
+
+          echo "Health check failed"
+          exit 1
+
+      - name: Show Logs On Failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
