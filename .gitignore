@@ -1,6 +1,7 @@
 venv/
 .trivy-cache/
 output/
+test-repos/
 .env
 *.pem
 terraform/terraform.tfvars
