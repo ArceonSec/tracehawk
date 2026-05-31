@@ -25,6 +25,10 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
+      - name: Remove Default Auth Header
+        run: |
+          git config --local --unset-all "http.https://github.com/.extraheader"
+
       - name: Add Public Repository Remote
         run: |
           git remote add arceon \
