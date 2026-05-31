@@ -36,4 +36,4 @@ jobs:
 
       - name: Push Prod Branch To Public Main
         run: |
-          git push arceon prod:main
+          git push arceon prod:main --force
