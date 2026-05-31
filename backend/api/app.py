@@ -3,25 +3,27 @@ tracehawk FastAPI backend — REST API to trigger scans and serve results.
 """
 
 import os
-import sys
 import json
 import uuid
-import shutil
 import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from api.scanner import run_scan
+import logging
+
 
 from dotenv import load_dotenv
-
-# Load .env file when running locally; no-op inside Docker where Compose injects vars.
-load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
+
+# Load .env file when running locally; no-op inside Docker where Compose injects vars.
+
+load_dotenv()
 
 # ── auth ───────────────────────────────────────────────────────────────
 API_TOKEN = os.getenv("TRACEHAWK_API_KEY")
@@ -40,30 +42,9 @@ def verify_api_key(api_key: str = Security(api_key_scheme)):
 
 # ── paths ──────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
-SCANNER_PATH = ROOT_DIR / "api" / "scanner.py"
 OUTPUT_DIR = ROOT_DIR / "output"
 SCANS_DIR = OUTPUT_DIR / "scans"
 SCANS_DIR.mkdir(parents=True, exist_ok=True)
-
-# ── storage backend ────────────────────────────────────────────────────
-# When GCS_BUCKET_NAME is set, scans are stored in a GCS bucket (Cloud Run).
-# When absent, falls back to local filesystem (local dev / Docker Compose).
-import logging as _logging
-
-GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
-_gcs_bucket = None
-
-if GCS_BUCKET_NAME:
-    try:
-        from google.cloud import storage as gcs_storage
-        _gcs_client = gcs_storage.Client()
-        _gcs_bucket = _gcs_client.bucket(GCS_BUCKET_NAME)
-        _logging.info(f"GCS storage enabled: gs://{GCS_BUCKET_NAME}/scans/")
-    except Exception as e:
-        _logging.warning(f"GCS init failed ({e}), falling back to local storage")
-        _gcs_bucket = None
-else:
-    _logging.info("GCS_BUCKET_NAME not set — using local filesystem storage")
 
 # ── app ────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -135,9 +116,6 @@ def _severity_counts(findings: list[dict]) -> dict[str, int]:
         counts[sev] = counts.get(sev, 0) + 1
     return counts
 
-
-from api.scanner import run_scan
-
 def _run_scanner(target: str, tools: str) -> list[dict]:
     """
     Run the scanner directly via function call and return parsed findings.
@@ -150,66 +128,39 @@ def _run_scanner(target: str, tools: str) -> list[dict]:
 
 def _save_scan(scan: dict) -> None:
     data = json.dumps(scan, indent=2)
-    if _gcs_bucket:
-        blob = _gcs_bucket.blob(f"scans/{scan['scan_id']}.json")
-        blob.upload_from_string(data, content_type="application/json")
-    else:
-        scan_file = SCANS_DIR / f"{scan['scan_id']}.json"
-        with open(scan_file, "w") as f:
-            f.write(data)
+    scan_file = SCANS_DIR / f"{scan['scan_id']}.json"
+    with open(scan_file, "w") as f:
+        f.write(data)
 
 
 def _load_scan(scan_id: str) -> Optional[dict]:
     # Allow alphanumeric + hyphens only
     if not all(c.isalnum() or c == '-' for c in scan_id):
         raise HTTPException(status_code=400, detail="Invalid scan_id format")
-    if _gcs_bucket:
-        blob = _gcs_bucket.blob(f"scans/{scan_id}.json")
-        if not blob.exists():
-            return None
-        return json.loads(blob.download_as_text())
-    else:
-        scan_file = SCANS_DIR / f"{scan_id}.json"
-        if not scan_file.exists():
-            return None
-        with open(scan_file, "r") as f:
-            return json.load(f)
+
+    scan_file = SCANS_DIR / f"{scan_id}.json"
+    if not scan_file.exists():
+        return None
+    with open(scan_file, "r") as f:
+        return json.load(f)
 
 
 def _list_scans() -> list[dict]:
     scans = []
-    if _gcs_bucket:
-        blobs = _gcs_bucket.list_blobs(prefix="scans/", delimiter="/")
-        for blob in blobs:
-            if not blob.name.endswith(".json"):
-                continue
-            data = json.loads(blob.download_as_text())
-            scans.append({
-                "scan_id": data["scan_id"],
-                "target": data["target"],
-                "tools": data["tools"],
-                "status": data["status"],
-                "total_findings": data["total_findings"],
-                "severity_counts": data["severity_counts"],
-                "started_at": data["started_at"],
-                "completed_at": data.get("completed_at"),
-            })
-        # Sort by started_at descending (newest first)
-        scans.sort(key=lambda s: s.get("started_at", ""), reverse=True)
-    else:
-        for scan_file in sorted(SCANS_DIR.glob("*.json"), reverse=True):
-            with open(scan_file, "r") as f:
-                data = json.load(f)
-                scans.append({
-                    "scan_id": data["scan_id"],
-                    "target": data["target"],
-                    "tools": data["tools"],
-                    "status": data["status"],
-                    "total_findings": data["total_findings"],
-                    "severity_counts": data["severity_counts"],
-                    "started_at": data["started_at"],
-                    "completed_at": data.get("completed_at"),
-                })
+    for scan_file in sorted(SCANS_DIR.glob("*.json")):
+        with open(scan_file, "r") as f:
+            data = json.load(f)
+        scans.append({
+            "scan_id": data["scan_id"],
+            "target": data["target"],
+            "tools": data["tools"],
+            "status": data["status"],
+            "total_findings": data["total_findings"],
+            "severity_counts": data["severity_counts"],
+            "started_at": data["started_at"],
+            "completed_at": data.get("completed_at"),
+        })
+    scans.sort(key=lambda s: s.get("started_at", ""), reverse=True)
     return scans
 
 
@@ -281,7 +232,6 @@ def trigger_scan(req: ScanRequest, api_key: str = Depends(verify_api_key)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        import logging
         logging.error(f"Internal scanner workflow error: {e}")
         raise HTTPException(status_code=500, detail="Scanner encountered an internal execution error.")
 
@@ -345,16 +295,11 @@ def delete_scan(scan_id: str, api_key: str = Depends(verify_api_key)):
     """Delete a specific scan result."""
     if not all(c.isalnum() or c == '-' for c in scan_id):
         raise HTTPException(status_code=400, detail="Invalid scan_id format")
-    if _gcs_bucket:
-        blob = _gcs_bucket.blob(f"scans/{scan_id}.json")
-        if not blob.exists():
-            raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
-        blob.delete()
-    else:
-        scan_file = SCANS_DIR / f"{scan_id}.json"
-        if not scan_file.exists():
-            raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
-        scan_file.unlink()
+    
+    scan_file = SCANS_DIR / f"{scan_id}.json"
+    if not scan_file.exists():
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+    scan_file.unlink()
     return {"message": f"Scan {scan_id} deleted"}
 
 
