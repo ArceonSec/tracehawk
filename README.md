@@ -23,15 +23,17 @@ Instead of producing isolated findings, TraceHawk normalizes results into a unif
 
 ### dashboard
 
-> Add screenshot here
+> <img width="1902" height="851" alt="image" src="https://github.com/user-attachments/assets/fe089e6c-a6fa-475a-925a-594506ecfd1c" />
+
 
 ### findings view
 
-> Add screenshot here
+<img width="1493" height="162" alt="image" src="https://github.com/user-attachments/assets/4303b93a-000f-41f4-9809-e01b6244b475" />
 
 ### ai remediation
 
-> Add screenshot here
+<img width="1918" height="865" alt="image" src="https://github.com/user-attachments/assets/c82022c2-b153-4175-babd-07963789cf89" />
+
 
 ---
 
