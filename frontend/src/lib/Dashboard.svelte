@@ -101,92 +101,232 @@
     }
   }
 
+  function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function severityBadge(sev) {
+    const s = (sev || '').toUpperCase();
+    const colors = { CRITICAL:'#dc2626', HIGH:'#e07020', MEDIUM:'#c59a1e', LOW:'#3b6fcf' };
+    const bg     = { CRITICAL:'rgba(220,38,38,0.15)', HIGH:'rgba(224,112,32,0.15)', MEDIUM:'rgba(197,154,30,0.15)', LOW:'rgba(59,111,207,0.15)' };
+    const txt    = { CRITICAL:'#f87171', HIGH:'#fb923c', MEDIUM:'#e2c54a', LOW:'#7ba8e0' };
+    const border = colors[s] || '#6b7280';
+    return `<span style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:0.75rem;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;border:1px solid ${border};background:${bg[s]||'rgba(107,114,128,0.15)'};color:${txt[s]||'#9ca3af'};">${esc(s || 'UNKNOWN')}</span>`;
+  }
+
   function downloadReport() {
     if (!recentScan) return;
-    const lines = [];
-    lines.push(`# Tracehawk Security Report`);
-    lines.push(``);
-    lines.push(`**Target:** ${recentScan.target}`);
-    lines.push(`**Scan ID:** ${recentScan.scan_id}`);
-    lines.push(`**Date:** ${recentScan.completed_at || new Date().toISOString()}`);
-    lines.push(`**Total Findings:** ${recentScan.total_findings}`);
-    lines.push(``);
-    lines.push(`## Severity Summary`);
-    lines.push(``);
-    lines.push(`| Severity | Count |`);
-    lines.push(`|----------|-------|`);
-    for (const [sev, count] of Object.entries(recentScan.severity_counts || {})) {
-      lines.push(`| ${sev} | ${count} |`);
-    }
-    lines.push(``);
-    lines.push(`---`);
-    lines.push(``);
+    const date = recentScan.completed_at || new Date().toISOString();
 
+    // ── Build severity summary cards ──
+    let sevCards = '';
+    const sevOrder = ['CRITICAL','HIGH','MEDIUM','LOW'];
+    const sevColors = { CRITICAL:'#f87171', HIGH:'#fb923c', MEDIUM:'#e2c54a', LOW:'#7ba8e0' };
+    for (const s of sevOrder) {
+      const count = (recentScan.severity_counts || {})[s] || 0;
+      sevCards += `<div style="text-align:center;min-width:100px;"><div style="font-size:2.2rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:${sevColors[s]};">${count}</div><div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-top:4px;">${s}</div></div>`;
+    }
+
+    // ── Build findings HTML ──
+    let findingsHtml = '';
     if (recentScan.categorized_findings) {
       for (const [category, findings] of Object.entries(recentScan.categorized_findings)) {
-        lines.push(`## ${category}`);
-        lines.push(``);
+        findingsHtml += `<div style="margin-bottom:36px;">`;
+        findingsHtml += `<h2 style="font-family:'JetBrains Mono',monospace;font-size:1.15rem;color:#dde1e8;margin:0 0 6px 0;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);">${esc(category)} <span style="font-size:0.78rem;font-weight:400;background:rgba(255,255,255,0.08);color:#6b7280;padding:3px 10px;border-radius:12px;margin-left:10px;">${findings.length} finding${findings.length !== 1 ? 's' : ''}</span></h2>`;
 
-        // AI strategy if available
+        // AI strategy block
         if (aiResults[category]?.category_explanation) {
-          lines.push(`### AI Security Strategy`);
-          lines.push(``);
-          lines.push(aiResults[category].category_explanation);
-          lines.push(``);
+          findingsHtml += `<div style="margin:14px 0 20px;padding:16px 20px;background:rgba(176,82,255,0.07);border:1px solid rgba(176,82,255,0.25);border-radius:8px;"><div style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:600;color:#7c85c7;margin-bottom:10px;">✦ AI Security Strategy</div><div style="font-size:0.9rem;line-height:1.7;color:#c8cdd5;">${esc(aiResults[category].category_explanation)}</div></div>`;
         }
 
-        for (const f of findings) {
-          lines.push(`### ${f.rule}`);
-          lines.push(``);
-          lines.push(`- **Tool:** ${f.tool}`);
-          lines.push(`- **File:** ${f.file || 'N/A'}`);
-          lines.push(`- **Line:** ${f.line || 'N/A'}`);
-          lines.push(`- **Severity:** ${f.severity}`);
-          if (f.cwe && f.cwe.length) lines.push(`- **CWE:** ${f.cwe.join(', ')}`);
-          lines.push(`- **Message:** ${f.message}`);
-          lines.push(``);
-          if (f.snippet) {
-            lines.push(`**Detected Code:**`);
-            lines.push('```');
-            lines.push(f.snippet);
-            lines.push('```');
-            lines.push(``);
+        for (let idx = 0; idx < findings.length; idx++) {
+          const f = findings[idx];
+          findingsHtml += `<div style="background:#111318;border:1px solid rgba(255,255,255,0.06);border-radius:8px;margin-bottom:14px;overflow:hidden;">`;
+
+          // Header row
+          findingsHtml += `<div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">`;
+          findingsHtml += `<div style="display:flex;align-items:center;gap:10px;">${severityBadge(f.severity)}<span style="font-size:0.78rem;font-family:'JetBrains Mono',monospace;color:#7c85c7;border:1px solid rgba(176,82,255,0.3);padding:3px 8px;border-radius:4px;background:rgba(176,82,255,0.1);">${esc(f.tool)}</span></div>`;
+          findingsHtml += `<div style="display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:#6b7280;">`;
+          if (f.file) findingsHtml += `<span>${esc(f.file)}</span>`;
+          if (f.line) findingsHtml += `<span style="background:rgba(56,189,248,0.15);color:#5eafd6;padding:2px 8px;border-radius:4px;border:1px solid rgba(56,189,248,0.3);font-size:0.78rem;">L${f.line}</span>`;
+          findingsHtml += `</div></div>`;
+
+          // Rule + CWE row
+          findingsHtml += `<div style="padding:0 18px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">`;
+          findingsHtml += `<strong style="font-size:1rem;color:#dde1e8;">${esc(f.rule)}</strong>`;
+          if (f.cwe && f.cwe.length) {
+            for (const cid of f.cwe) {
+              findingsHtml += `<span style="font-size:0.7rem;font-family:'JetBrains Mono',monospace;color:#93c5fd;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);padding:2px 7px;border-radius:4px;">${esc(cid)}</span>`;
+            }
+          }
+          findingsHtml += `</div>`;
+
+          // Message
+          if (f.message) {
+            findingsHtml += `<div style="padding:0 18px 14px;font-size:0.9rem;color:#6b7280;line-height:1.5;">${esc(f.message)}</div>`;
           }
 
-          // AI fix if available
-          const fix = aiResults[category]?.fixes?.[findings.indexOf(f)];
+          // Code snippet
+          if (f.snippet) {
+            findingsHtml += `<div style="margin:0 18px 16px;border-radius:6px;overflow:hidden;border:1px solid rgba(239,68,68,0.25);background:rgba(0,0,0,0.4);">`;
+            findingsHtml += `<div style="padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:0.72rem;font-weight:600;letter-spacing:0.5px;color:#fca5a5;background:rgba(239,68,68,0.08);border-bottom:1px solid rgba(239,68,68,0.15);text-transform:uppercase;">Detected Code${f.line ? ' — line ' + f.line : ''}</div>`;
+            findingsHtml += `<pre style="margin:0;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:0.85rem;white-space:pre-wrap;word-break:break-all;line-height:1.6;"><code><span style="display:block;padding:4px 8px;border-left:3px solid #dc2626;background:rgba(239,68,68,0.12);color:#fca5a5;">${esc(f.snippet)}</span></code></pre>`;
+            findingsHtml += `</div>`;
+          }
+
+          // AI fix
+          const fix = aiResults[category]?.fixes?.[idx];
           if (fix) {
+            findingsHtml += `<div style="margin:0 18px 16px;border:1px solid rgba(56,189,248,0.2);border-radius:8px;overflow:hidden;">`;
+            findingsHtml += `<div style="padding:10px 16px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;font-weight:600;color:#5eafd6;background:#1a1d24;border-bottom:1px solid rgba(255,255,255,0.05);">AI Remediation (Gemini)</div>`;
+            findingsHtml += `<div style="padding:14px 16px;background:rgba(0,0,0,0.3);">`;
             if (fix.explanation) {
-              lines.push(`**Why this is dangerous:** ${fix.explanation}`);
-              lines.push(``);
+              findingsHtml += `<div style="margin-bottom:12px;padding:10px 14px;font-size:0.88rem;line-height:1.5;color:#6b7280;background:rgba(0,0,0,0.15);border-radius:6px;border-left:3px solid #5eafd6;"><strong style="color:#5eafd6;">Why this is dangerous:</strong> ${esc(fix.explanation)}</div>`;
             }
             if (fix.vulnerable_code) {
-              lines.push(`**Vulnerable Code:**`);
-              lines.push('```');
-              lines.push(fix.vulnerable_code);
-              lines.push('```');
-              lines.push(``);
+              findingsHtml += `<div style="margin-bottom:10px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">`;
+              findingsHtml += `<div style="padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:0.72rem;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#fca5a5;background:rgba(239,68,68,0.08);border-bottom:1px solid rgba(239,68,68,0.15);">⛔ Vulnerable Code</div>`;
+              findingsHtml += `<pre style="margin:0;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:0.85rem;white-space:pre-wrap;"><code style="color:#fca5a5;">${esc(fix.vulnerable_code)}</code></pre></div>`;
             }
-            lines.push(`**Remediated Code:**`);
-            lines.push('```');
-            lines.push(fix.remediated_code_snippet);
-            lines.push('```');
-            lines.push(``);
+            findingsHtml += `<div style="border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">`;
+            findingsHtml += `<div style="padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:0.72rem;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:#6ee7b7;background:rgba(16,185,129,0.08);border-bottom:1px solid rgba(16,185,129,0.15);">✅ Remediated Code</div>`;
+            findingsHtml += `<pre style="margin:0;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:0.85rem;white-space:pre-wrap;"><code style="color:#6ee7b7;">${esc(fix.remediated_code_snippet)}</code></pre></div>`;
+            findingsHtml += `</div></div>`;
           }
-          lines.push(`---`);
-          lines.push(``);
+
+          findingsHtml += `</div>`; // close finding card
         }
+        findingsHtml += `</div>`; // close category group
       }
     }
 
-    lines.push(``);
-    lines.push(`> Report generated by Tracehawk DevSecOps Scanner`);
+    // ── Assemble full HTML document ──
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TraceHawk Security Report — ${esc(recentScan.scan_id)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #08090d;
+    color: #c8cdd5;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-image:
+      radial-gradient(circle at 20% 60%, rgba(92,88,160,0.025), transparent 30%),
+      radial-gradient(circle at 80% 25%, rgba(94,175,214,0.02), transparent 30%);
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  .report-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 30px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .report-header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(to right, #5eafd6, #7c85c7);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 16px;
+  }
+  .meta-grid {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .meta-item {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+  .meta-item strong { color: #5eafd6; }
+  .severity-bar {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    flex-wrap: wrap;
+    padding: 22px;
+    margin-bottom: 36px;
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+  }
+  .total-badge {
+    text-align: center;
+    padding-right: 30px;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    margin-right: 10px;
+  }
+  .total-badge .num {
+    font-size: 2.6rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: #dde1e8;
+  }
+  .total-badge .lbl {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+  .footer {
+    text-align: center;
+    margin-top: 50px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.78rem;
+    color: #4b5563;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  @media print {
+    body { background: #08090d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="report-header">
+    <h1>TRACEHAWK — Security Report</h1>
+    <div class="meta-grid">
+      <div class="meta-item"><strong>Target:</strong> ${esc(recentScan.target)}</div>
+      <div class="meta-item"><strong>Scan ID:</strong> ${esc(recentScan.scan_id)}</div>
+      <div class="meta-item"><strong>Date:</strong> ${esc(date)}</div>
+    </div>
+  </div>
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+  <div class="severity-bar">
+    <div class="total-badge">
+      <div class="num">${recentScan.total_findings}</div>
+      <div class="lbl">Total Findings</div>
+    </div>
+    ${sevCards}
+  </div>
+
+  ${findingsHtml}
+
+  <div class="footer">
+    Report generated by TraceHawk DevSecOps Scanner &middot; ${esc(date)}
+  </div>
+</div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `tracehawk-report-${recentScan.scan_id}.md`;
+    a.download = `tracehawk-report-${recentScan.scan_id}.html`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -320,7 +460,7 @@
             <h2 class="section-title">Detected Findings</h2>
             <button class="btn btn-outline download-btn" on:click={downloadReport}>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              Download Report (.md)
+              Download Report (.html)
             </button>
           </div>
           {#if recentScan.categorized_findings && Object.keys(recentScan.categorized_findings).length > 0}
